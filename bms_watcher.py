@@ -13,9 +13,10 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 # ── Injected from GitHub Secrets ──────────────────────────────────────────
-GMAIL_USER     = os.environ["GMAIL_USER"]      # vibhorjain27@gmail.com
-GMAIL_PASSWORD = os.environ["GMAIL_PASSWORD"]  # App Password (16 chars)
-NOTIFY_EMAIL   = os.environ["GMAIL_USER"]      # Send to yourself
+GMAIL_USER     = os.environ["GMAIL_USER"]
+GMAIL_PASSWORD = os.environ["GMAIL_PASSWORD"]
+NOTIFY_EMAIL   = os.environ["GMAIL_USER"]
+TEST_MODE      = os.environ.get("TEST_MODE", "false").lower() == "true"
 # ──────────────────────────────────────────────────────────────────────────
 
 TARGET_DATE_CODE = "20260319"
@@ -40,39 +41,14 @@ def check_availability():
     resp = requests.get(BMS_API, headers=HEADERS, timeout=15)
     resp.raise_for_status()
     data = resp.json()
-
     dates = data.get("ShowDatesArray", [])
     march19 = next((d for d in dates if d.get("DateCode") == TARGET_DATE_CODE), None)
-
     if march19 is None:
         return False, "March 19 not yet visible in BMS date picker"
-
-    is_disabled = march19.get("isDisabled", True)
-    return not is_disabled, march19
+    return not march19.get("isDisabled", True), march19
 
 
-def send_gmail():
-    subject = "🎬 BOOK NOW — Dhurandhar Tickets Live on March 19!"
-
-    html_body = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
-        <h2 style="color: #e63946;">🎬 Tickets Are LIVE!</h2>
-        <p style="font-size: 16px;">
-            <strong>{MOVIE_NAME}</strong> tickets for
-            <strong>Thursday, 19 March 2026</strong> are now open for booking on BookMyShow!
-        </p>
-        <a href="{MOVIE_URL}"
-           style="display:inline-block; padding:12px 24px; background:#e63946;
-                  color:white; text-decoration:none; border-radius:6px;
-                  font-size:16px; font-weight:bold; margin-top:10px;">
-            Book Tickets Now →
-        </a>
-        <p style="color:#888; font-size:12px; margin-top:20px;">
-            Sent by your BMS Watcher on GitHub Actions
-        </p>
-    </div>
-    """
-
+def send_gmail(subject, html_body):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"]    = GMAIL_USER
@@ -85,6 +61,29 @@ def send_gmail():
 
 
 def main():
+    # ── TEST MODE: just verify email works ──────────────────────────────
+    if TEST_MODE:
+        print("🧪 TEST MODE — sending test email...")
+        try:
+            send_gmail(
+                subject="✅ BMS Watcher is working!",
+                html_body=f"""
+                <div style="font-family:Arial,sans-serif;max-width:500px;">
+                    <h2 style="color:#2a9d8f;">✅ Your BMS Watcher is active!</h2>
+                    <p>GitHub Actions is running correctly and your Gmail connection works.</p>
+                    <p>You will receive another email like this one the moment
+                    <strong>{MOVIE_NAME}</strong> tickets open for
+                    <strong>Thursday, 19 March 2026</strong>.</p>
+                    <p style="color:#888;font-size:12px;">Checking every 5 minutes automatically.</p>
+                </div>
+                """
+            )
+            print(f"📧 Test email sent to {NOTIFY_EMAIL}!")
+        except Exception as e:
+            print(f"❌ Email failed: {e}")
+        sys.exit(0)
+
+    # ── NORMAL MODE: check BMS ───────────────────────────────────────────
     print(f"Checking BookMyShow: {MOVIE_NAME} — 19 March 2026")
 
     try:
@@ -96,7 +95,27 @@ def main():
     if available:
         print("✅ TICKETS ARE LIVE! Sending Gmail alert...")
         try:
-            send_gmail()
+            send_gmail(
+                subject="🎬 BOOK NOW — Dhurandhar Tickets Live on March 19!",
+                html_body=f"""
+                <div style="font-family:Arial,sans-serif;max-width:500px;">
+                    <h2 style="color:#e63946;">🎬 Tickets Are LIVE!</h2>
+                    <p style="font-size:16px;">
+                        <strong>{MOVIE_NAME}</strong> tickets for
+                        <strong>Thursday, 19 March 2026</strong> are now open for booking!
+                    </p>
+                    <a href="{MOVIE_URL}"
+                       style="display:inline-block;padding:12px 24px;background:#e63946;
+                              color:white;text-decoration:none;border-radius:6px;
+                              font-size:16px;font-weight:bold;margin-top:10px;">
+                        Book Tickets Now →
+                    </a>
+                    <p style="color:#888;font-size:12px;margin-top:20px;">
+                        Sent by your BMS Watcher on GitHub Actions
+                    </p>
+                </div>
+                """
+            )
             print(f"📧 Email sent to {NOTIFY_EMAIL}!")
         except Exception as e:
             print(f"⚠️ Email failed: {e}")
