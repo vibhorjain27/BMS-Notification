@@ -2,8 +2,8 @@ name: BMS Ticket Watcher — Dhurandhar Mar 19
 
 on:
   schedule:
-    - cron: '*/5 * * * *'   # Every 5 minutes (GitHub's minimum interval)
-  workflow_dispatch:          # Manual trigger from GitHub Actions tab
+    - cron: '*/5 * * * *'   # Every 5 minutes
+  workflow_dispatch:          # Manual trigger from Actions tab
 
 jobs:
   check-tickets:
@@ -21,8 +21,8 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Check BookMyShow availability
+      - name: Check BookMyShow & alert via Gmail
         env:
-          WHATSAPP_PHONE: ${{ secrets.WHATSAPP_PHONE }}
-          CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
         run: python bms_watcher.py

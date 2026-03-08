@@ -2,18 +2,20 @@
 """
 BookMyShow Ticket Watcher — Dhurandhar: The Revenge (Hindi)
 Runs via GitHub Actions every 5 minutes.
-Sends WhatsApp alert via CallMeBot when March 19 tickets go live.
+Sends Gmail alert when March 19 tickets go live.
 """
 
 import requests
-import json
 import os
 import sys
-from urllib.parse import quote
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # ── Injected from GitHub Secrets ──────────────────────────────────────────
-PHONE   = os.environ["WHATSAPP_PHONE"]    # e.g. 919876543210 (no + sign)
-API_KEY = os.environ["CALLMEBOT_APIKEY"]  # from CallMeBot WhatsApp activation
+GMAIL_USER     = os.environ["GMAIL_USER"]      # vibhorjain27@gmail.com
+GMAIL_PASSWORD = os.environ["GMAIL_PASSWORD"]  # App Password (16 chars)
+NOTIFY_EMAIL   = os.environ["GMAIL_USER"]      # Send to yourself
 # ──────────────────────────────────────────────────────────────────────────
 
 TARGET_DATE_CODE = "20260319"
@@ -49,12 +51,37 @@ def check_availability():
     return not is_disabled, march19
 
 
-def send_whatsapp(message: str):
-    encoded = quote(message)
-    url = f"https://api.callmebot.com/whatsapp.php?phone={PHONE}&text={encoded}&apikey={API_KEY}"
-    resp = requests.get(url, timeout=15)
-    print(f"  CallMeBot response: {resp.status_code} — {resp.text[:100]}")
-    return resp.status_code == 200
+def send_gmail():
+    subject = "🎬 BOOK NOW — Dhurandhar Tickets Live on March 19!"
+
+    html_body = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
+        <h2 style="color: #e63946;">🎬 Tickets Are LIVE!</h2>
+        <p style="font-size: 16px;">
+            <strong>{MOVIE_NAME}</strong> tickets for
+            <strong>Thursday, 19 March 2026</strong> are now open for booking on BookMyShow!
+        </p>
+        <a href="{MOVIE_URL}"
+           style="display:inline-block; padding:12px 24px; background:#e63946;
+                  color:white; text-decoration:none; border-radius:6px;
+                  font-size:16px; font-weight:bold; margin-top:10px;">
+            Book Tickets Now →
+        </a>
+        <p style="color:#888; font-size:12px; margin-top:20px;">
+            Sent by your BMS Watcher on GitHub Actions
+        </p>
+    </div>
+    """
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"]    = GMAIL_USER
+    msg["To"]      = NOTIFY_EMAIL
+    msg.attach(MIMEText(html_body, "html"))
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(GMAIL_USER, GMAIL_PASSWORD)
+        server.sendmail(GMAIL_USER, NOTIFY_EMAIL, msg.as_string())
 
 
 def main():
@@ -67,17 +94,12 @@ def main():
         sys.exit(0)
 
     if available:
-        print("✅ TICKETS ARE LIVE! Sending WhatsApp alert...")
-        msg = (
-            f"🎬 *{MOVIE_NAME}* tickets are LIVE!\n"
-            f"📅 Thu, 19 March 2026 — Book NOW before they fill up!\n"
-            f"👉 {MOVIE_URL}"
-        )
-        sent = send_whatsapp(msg)
-        if sent:
-            print("📱 WhatsApp alert sent successfully!")
-        else:
-            print("⚠️ WhatsApp send failed — check WHATSAPP_PHONE and CALLMEBOT_APIKEY secrets")
+        print("✅ TICKETS ARE LIVE! Sending Gmail alert...")
+        try:
+            send_gmail()
+            print(f"📧 Email sent to {NOTIFY_EMAIL}!")
+        except Exception as e:
+            print(f"⚠️ Email failed: {e}")
     else:
         print(f"⏳ Not yet available — {info}")
 
